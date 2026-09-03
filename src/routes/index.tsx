@@ -1,9 +1,10 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { Loader2, RotateCcw, Scale, FileCheck2 } from "lucide-react";
+import { FileText, Loader2, RotateCcw, Scale, FileCheck2 } from "lucide-react";
 import { UploadCard, type PickedFile } from "@/components/UploadCard";
 import { ResultCards } from "@/components/ResultCards";
+import { DownloadPdfButton } from "@/components/DownloadPdfButton";
 import { DocumentChat } from "@/components/DocumentChat";
 import {
   analyzeDocument,
@@ -124,11 +125,19 @@ function Index() {
     <div className="min-h-screen bg-background" dir={rtl ? "rtl" : "ltr"} lang={rtl ? "ur" : "en"}>
       <header className="legal-gradient px-5 pb-10 pt-8 text-primary-foreground">
         <div className="mx-auto max-w-2xl">
-          <div className="flex items-center gap-2.5">
-            <span className="flex size-9 items-center justify-center rounded-xl bg-primary-foreground/15">
-              <Scale className="size-5" />
+          <div className="flex items-center justify-between gap-2.5">
+            <span className="flex items-center gap-2.5">
+              <span className="flex size-9 items-center justify-center rounded-xl bg-primary-foreground/15">
+                <Scale className="size-5" />
+              </span>
+              <span className="text-base font-bold tracking-tight">{t.brand}</span>
             </span>
-            <span className="text-base font-bold tracking-tight">{t.brand}</span>
+            <Link
+              to="/templates"
+              className="inline-flex items-center gap-1.5 rounded-full bg-primary-foreground/15 px-3 py-1.5 text-xs font-semibold hover:bg-primary-foreground/25"
+            >
+              <FileText className="size-3.5" /> Templates
+            </Link>
           </div>
           <h1 className="mt-6 font-display text-3xl font-bold leading-tight sm:text-4xl">
             {t.heroTitle}
@@ -209,6 +218,7 @@ function Index() {
             </div>
 
             <ResultCards result={result} rtl={rtl} t={t} />
+            <DownloadPdfButton result={result} fileName={fileName} t={t} />
             <DocumentChat
               context={JSON.stringify(result)}
               language={language}
