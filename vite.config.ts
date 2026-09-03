@@ -1,13 +1,20 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'path'
 
 // https://js.org
 export default defineConfig({
   plugins: [react()],
-  root: './', // Forcefully setting root directory
   resolve: {
     alias: {
-      '@': '/src',
+      '@': resolve(__dirname, './src'),
+    },
+  },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+      },
     },
   },
 })
