@@ -1,0 +1,131 @@
+{
+  "version": 1,
+  "sdk_version": "1.0.0",
+  "path": "/mcp",
+  "auth": {
+    "type": "none"
+  },
+  "mcp": {
+    "server": {
+      "name": "pocket-lawyer-ai",
+      "version": "0.1.0",
+      "title": "Pocket Lawyer AI"
+    },
+    "tools": [
+      {
+        "name": "analyze_document",
+        "title": "Analyze a legal document",
+        "description": "Explain the text of a contract, agreement or legal notice in plain language: main points, hidden risks and red flags, a verdict on whether to sign, and next steps.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": false,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "documentText": {
+              "type": "string",
+              "minLength": 20,
+              "maxLength": 60000,
+              "description": "Full text of the contract, agreement or notice to analyze."
+            },
+            "language": {
+              "default": "english",
+              "description": "Language of the explanation: english, urdu or roman-urdu.",
+              "type": "string",
+              "enum": [
+                "english",
+                "urdu",
+                "roman-urdu"
+              ]
+            }
+          },
+          "required": [
+            "documentText"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "ask_about_document",
+        "title": "Ask a question about a document",
+        "description": "Answer a specific question about a contract or notice, such as cancellation rights, penalties or notice periods, in 2-4 plain sentences.",
+        "annotations": {
+          "readOnlyHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "documentText": {
+              "type": "string",
+              "minLength": 20,
+              "maxLength": 60000,
+              "description": "Text of the document (or a prior analysis) the question is about."
+            },
+            "question": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 1000,
+              "description": "The user's question."
+            },
+            "language": {
+              "default": "english",
+              "description": "Language of the answer.",
+              "type": "string",
+              "enum": [
+                "english",
+                "urdu",
+                "roman-urdu"
+              ]
+            }
+          },
+          "required": [
+            "documentText",
+            "question"
+          ]
+        },
+        "outputSchema": null
+      },
+      {
+        "name": "explain_clause",
+        "title": "Explain a clause or legal term",
+        "description": "Translate one confusing clause or legal term into plain language, and say who it favours and what to watch out for.",
+        "annotations": {
+          "readOnlyHint": true,
+          "idempotentHint": true,
+          "openWorldHint": true
+        },
+        "inputSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "type": "object",
+          "properties": {
+            "clause": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 8000,
+              "description": "The clause or legal term to explain."
+            },
+            "language": {
+              "default": "english",
+              "description": "Language of the explanation.",
+              "type": "string",
+              "enum": [
+                "english",
+                "urdu",
+                "roman-urdu"
+              ]
+            }
+          },
+          "required": [
+            "clause"
+          ]
+        },
+        "outputSchema": null
+      }
+    ]
+  }
+}
