@@ -1,5 +1,8 @@
-const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent";
+const PRIMARY_MODEL = "gemini-3.8-flash";
+const FALLBACK_MODEL = "gemini-3.7-flash";
+
+const GEMINI_BASE_URL =
+  "https://generativelanguage.googleapis.com/v1beta/models";
 
 export type GatewayMessage = {
   role: "system" | "user" | "assistant";
@@ -24,7 +27,7 @@ type GeminiPart = {
 };
 
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
-const MAX_ATTEMPTS = 3;
+const MAX_ATTEMPTS_PER_MODEL = 3;
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -32,6 +35,7 @@ function sleep(ms: number) {
 
 function isHighDemandMessage(message: string) {
   const value = message.toLowerCase();
+
   return (
     value.includes("high demand") ||
     value.includes("temporarily unavailable") ||
@@ -44,6 +48,7 @@ function isHighDemandMessage(message: string) {
 function retryDelayMs(attempt: number) {
   const base = attempt === 1 ? 900 : attempt === 2 ? 1900 : 3600;
   const jitter = Math.floor(Math.random() * 300);
+
   return base + jitter;
 }
 
@@ -122,61 +127,36 @@ async function readGeminiError(res: Response) {
 
     message = body?.error?.message ?? message;
   } catch {
-    // Ignore invalid error response JSON.
+    // Ignore invalid error JSON.
   }
 
   return message;
 }
 
-export async function callGateway(
-  messages: GatewayMessage[],
+async function runModel(
+  model: string,
+  requestBody: string,
+  key: string,
 ): Promise<string> {
-  const key = process.env["GEMINI_API_KEY"];
-
-  if (!key) {
-    throw new GatewayError(401, "AI is not configured for this app.");
-  }
-
-  const systemText = messages
-    .filter((message) => message.role === "system")
-    .map((message) =>
-      typeof message.content === "string"
-        ? message.content
-        : String(message.content ?? ""),
-    )
-    .join("\n\n");
-
-  const contents = messages
-    .filter((message) => message.role !== "system")
-    .map((message) => ({
-      role: message.role === "assistant" ? "model" : "user",
-      parts: toParts(message.content),
-    }));
-
-  const requestBody = JSON.stringify({
-    ...(systemText
-      ? {
-          systemInstruction: {
-            parts: [{ text: systemText }],
-          },
-        }
-      : {}),
-    contents,
-  });
-
   let lastStatus = 503;
-  let lastMessage =
-    "Gemini is temporarily busy. Please try again in a few moments.";
+  let lastMessage = "Gemini is temporarily busy.";
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    const res = await fetch(GEMINI_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": key,
+  for (
+    let attempt = 1;
+    attempt <= MAX_ATTEMPTS_PER_MODEL;
+    attempt += 1
+  ) {
+    const res = await fetch(
+      `${GEMINI_BASE_URL}/${model}:generateContent`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": key,
+        },
+        body: requestBody,
       },
-      body: requestBody,
-    });
+    );
 
     if (res.ok) {
       const data = (await res.json()) as {
@@ -206,6 +186,7 @@ export async function callGateway(
     }
 
     const rawMessage = await readGeminiError(res);
+
     lastStatus = res.status;
     lastMessage = rawMessage;
 
@@ -217,23 +198,92 @@ export async function callGateway(
     }
 
     const shouldRetry =
-      RETRYABLE_STATUSES.has(res.status) || isHighDemandMessage(rawMessage);
+      RETRYABLE_STATUSES.has(res.status) ||
+      isHighDemandMessage(rawMessage);
 
-    if (!shouldRetry || attempt === MAX_ATTEMPTS) {
-      if (res.status === 429 || isHighDemandMessage(rawMessage)) {
-        throw new GatewayError(
-          res.status,
-          "Gemini is temporarily busy due to high demand. Please try again shortly.",
-        );
-      }
-
+    if (!shouldRetry) {
       throw new GatewayError(res.status, rawMessage);
     }
 
-    await sleep(retryDelayMs(attempt));
+    if (attempt < MAX_ATTEMPTS_PER_MODEL) {
+      await sleep(retryDelayMs(attempt));
+    }
   }
 
   throw new GatewayError(lastStatus, lastMessage);
+}
+
+export async function callGateway(
+  messages: GatewayMessage[],
+): Promise<string> {
+  const key = process.env["GEMINI_API_KEY"];
+
+  if (!key) {
+    throw new GatewayError(
+      401,
+      "AI is not configured for this app.",
+    );
+  }
+
+  const systemText = messages
+    .filter((message) => message.role === "system")
+    .map((message) =>
+      typeof message.content === "string"
+        ? message.content
+        : String(message.content ?? ""),
+    )
+    .join("\n\n");
+
+  const contents = messages
+    .filter((message) => message.role !== "system")
+    .map((message) => ({
+      role: message.role === "assistant" ? "model" : "user",
+      parts: toParts(message.content),
+    }));
+
+  const requestBody = JSON.stringify({
+    ...(systemText
+      ? {
+          systemInstruction: {
+            parts: [{ text: systemText }],
+          },
+        }
+      : {}),
+    contents,
+  });
+
+  try {
+    return await runModel(PRIMARY_MODEL, requestBody, key);
+  } catch (error) {
+    if (!(error instanceof GatewayError)) {
+      throw error;
+    }
+
+    const shouldFallback =
+      RETRYABLE_STATUSES.has(error.status) ||
+      isHighDemandMessage(error.message);
+
+    if (!shouldFallback) {
+      throw error;
+    }
+  }
+
+  try {
+    return await runModel(FALLBACK_MODEL, requestBody, key);
+  } catch (error) {
+    if (
+      error instanceof GatewayError &&
+      (RETRYABLE_STATUSES.has(error.status) ||
+        isHighDemandMessage(error.message))
+    ) {
+      throw new GatewayError(
+        error.status,
+        "Gemini is temporarily busy. Both primary and fallback models are unavailable. Please try again shortly.",
+      );
+    }
+
+    throw error;
+  }
 }
 
 export function extractJson(raw: string): unknown {
