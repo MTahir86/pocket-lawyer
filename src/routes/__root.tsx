@@ -1,4 +1,3 @@
-```tsx
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -99,36 +98,29 @@ export const Route =
           name: "viewport",
           content: "width=device-width, initial-scale=1",
         },
-
         { title: "LegalDoc AI" },
-
         {
           name: "description",
           content:
             "Understand contracts, agreements and legal documents in simple English, Urdu and Roman Urdu with AI.",
         },
-
         {
           name: "author",
           content: "Muhammad Tahir",
         },
-
         {
           property: "og:title",
           content: "LegalDoc AI",
         },
-
         {
           property: "og:description",
           content:
             "AI-powered legal document analysis in simple English, Urdu and Roman Urdu.",
         },
-
         {
           property: "og:type",
           content: "website",
         },
-
         {
           name: "twitter:card",
           content: "summary_large_image",
@@ -192,4 +184,3 @@ function RootComponent() {
     </QueryClientProvider>
   );
 }
-```
