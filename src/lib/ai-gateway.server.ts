@@ -23,6 +23,30 @@ type GeminiPart = {
   };
 };
 
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+const MAX_ATTEMPTS = 3;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isHighDemandMessage(message: string) {
+  const value = message.toLowerCase();
+  return (
+    value.includes("high demand") ||
+    value.includes("temporarily unavailable") ||
+    value.includes("resource exhausted") ||
+    value.includes("overloaded") ||
+    value.includes("try again later")
+  );
+}
+
+function retryDelayMs(attempt: number) {
+  const base = attempt === 1 ? 900 : attempt === 2 ? 1900 : 3600;
+  const jitter = Math.floor(Math.random() * 300);
+  return base + jitter;
+}
+
 function dataUrlToInlineData(dataUrl: string): GeminiPart {
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/s);
 
@@ -86,6 +110,24 @@ function toParts(content: unknown): GeminiPart[] {
   return parts;
 }
 
+async function readGeminiError(res: Response) {
+  let message = `AI request failed (${res.status}).`;
+
+  try {
+    const body = (await res.json()) as {
+      error?: {
+        message?: string;
+      };
+    };
+
+    message = body?.error?.message ?? message;
+  } catch {
+    // Ignore invalid error response JSON.
+  }
+
+  return message;
+}
+
 export async function callGateway(
   messages: GatewayMessage[],
 ): Promise<string> {
@@ -111,76 +153,87 @@ export async function callGateway(
       parts: toParts(message.content),
     }));
 
-  const res = await fetch(GEMINI_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-goog-api-key": key,
-    },
-    body: JSON.stringify({
-      ...(systemText
-        ? {
-            systemInstruction: {
-              parts: [{ text: systemText }],
-            },
-          }
-        : {}),
-      contents,
-    }),
+  const requestBody = JSON.stringify({
+    ...(systemText
+      ? {
+          systemInstruction: {
+            parts: [{ text: systemText }],
+          },
+        }
+      : {}),
+    contents,
   });
 
-  if (!res.ok) {
-    let message = `AI request failed (${res.status}).`;
+  let lastStatus = 503;
+  let lastMessage =
+    "Gemini is temporarily busy. Please try again in a few moments.";
 
-    try {
-      const body = (await res.json()) as {
-        error?: {
-          message?: string;
-        };
-      };
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+    const res = await fetch(GEMINI_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": key,
+      },
+      body: requestBody,
+    });
 
-      message = body?.error?.message ?? message;
-    } catch {
-      // Ignore invalid error response JSON.
-    }
-
-    if (res.status === 429) {
-      message =
-        "Too many AI requests right now. Please try again shortly.";
-    }
-
-    if (res.status === 401 || res.status === 403) {
-      message =
-        "Gemini API key is invalid or does not have access.";
-    }
-
-    throw new GatewayError(res.status, message);
-  }
-
-  const data = (await res.json()) as {
-    candidates?: Array<{
-      content?: {
-        parts?: Array<{
-          text?: string;
+    if (res.ok) {
+      const data = (await res.json()) as {
+        candidates?: Array<{
+          content?: {
+            parts?: Array<{
+              text?: string;
+            }>;
+          };
         }>;
       };
-    }>;
-  };
 
-  const text =
-    data.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text ?? "")
-      .join("")
-      .trim() ?? "";
+      const text =
+        data.candidates?.[0]?.content?.parts
+          ?.map((part) => part.text ?? "")
+          .join("")
+          .trim() ?? "";
 
-  if (!text) {
-    throw new GatewayError(
-      502,
-      "Gemini returned an empty response. Please try again.",
-    );
+      if (!text) {
+        throw new GatewayError(
+          502,
+          "Gemini returned an empty response. Please try again.",
+        );
+      }
+
+      return text;
+    }
+
+    const rawMessage = await readGeminiError(res);
+    lastStatus = res.status;
+    lastMessage = rawMessage;
+
+    if (res.status === 401 || res.status === 403) {
+      throw new GatewayError(
+        res.status,
+        "Gemini API key is invalid or does not have access.",
+      );
+    }
+
+    const shouldRetry =
+      RETRYABLE_STATUSES.has(res.status) || isHighDemandMessage(rawMessage);
+
+    if (!shouldRetry || attempt === MAX_ATTEMPTS) {
+      if (res.status === 429 || isHighDemandMessage(rawMessage)) {
+        throw new GatewayError(
+          res.status,
+          "Gemini is temporarily busy due to high demand. Please try again shortly.",
+        );
+      }
+
+      throw new GatewayError(res.status, rawMessage);
+    }
+
+    await sleep(retryDelayMs(attempt));
   }
 
-  return text;
+  throw new GatewayError(lastStatus, lastMessage);
 }
 
 export function extractJson(raw: string): unknown {
