@@ -35,7 +35,7 @@ export type Strings = {
 };
 
 const english: Strings = {
-  brand: "Pocket Lawyer AI",
+  brand: "LegalDoc AI",
   heroTitle: "Understand any document in simple language.",
   heroSubtitle:
     "Upload a contract, agreement, or notice. Get the key points, hidden risks, and honest advice — in the language you think in.",
@@ -52,7 +52,7 @@ const english: Strings = {
   loadingSubtitle: "Reading every clause so you don't have to.",
   pagesCombined: (n) => `${n} pages combined`,
   newDoc: "New",
-  disclaimer: "Pocket Lawyer AI gives general guidance, not formal legal advice.",
+  disclaimer: "LegalDoc AI gives general guidance, not formal legal advice.",
   footerName: "Developed by Muhammad Tahir",
   summary: "Summary",
   redFlags: "Red Flags & Risks",
@@ -74,7 +74,7 @@ const english: Strings = {
 };
 
 const urdu: Strings = {
-  brand: "پاکٹ لائر AI",
+  brand: "LegalDoc AI",
   heroTitle: "کسی بھی دستاویز کو آسان زبان میں سمجھیں",
   heroSubtitle:
     "معاہدہ، ایگریمنٹ یا نوٹس اپلوڈ کریں۔ اہم نکات، چھپے ہوئے خطرات اور مخلصانہ مشورہ پائیں — اسی زبان میں جس میں آپ سوچتے ہیں۔",
@@ -91,7 +91,7 @@ const urdu: Strings = {
   loadingSubtitle: "ہم ہر شق پڑھ رہے ہیں تاکہ آپ کو نہ پڑھنی پڑے۔",
   pagesCombined: (n) => `${n} صفحات یکجا`,
   newDoc: "نئی",
-  disclaimer: "پاکٹ لائر AI عام رہنمائی فراہم کرتا ہے، باقاعدہ قانونی مشورہ نہیں۔",
+  disclaimer: "LegalDoc AI عام رہنمائی فراہم کرتا ہے، باقاعدہ قانونی مشورہ نہیں۔",
   footerName: "Developed by Muhammad Tahir",
   summary: "خلاصہ",
   redFlags: "خطرات اور سرخ نشان",
@@ -113,7 +113,7 @@ const urdu: Strings = {
 };
 
 const romanUrdu: Strings = {
-  brand: "Pocket Lawyer AI",
+  brand: "LegalDoc AI",
   heroTitle: "Kisi bhi document ko aasan zabaan mein samjhein.",
   heroSubtitle:
     "Contract, agreement ya notice upload karein. Ahem points, chupe hue risks aur imaandar mashwara payein — usi zabaan mein jis mein aap sochte hain.",
@@ -130,7 +130,7 @@ const romanUrdu: Strings = {
   loadingSubtitle: "Har clause hum parh rahe hain, taake aap ko na parhna paray.",
   pagesCombined: (n) => `${n} pages mila kar`,
   newDoc: "Naya",
-  disclaimer: "Pocket Lawyer AI aam rehnumai deta hai, baqaida legal advice nahi.",
+  disclaimer: "LegalDoc AI aam rehnumai deta hai, baqaida legal advice nahi.",
   footerName: "Developed by Muhammad Tahir",
   summary: "Khulasa",
   redFlags: "Red Flags aur Risks",
