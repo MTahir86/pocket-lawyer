@@ -53,10 +53,13 @@ const ALLOWED_CONTENT_TYPES = [
 
 function safeUploadName(file: File) {
   const extension =
-    file.type === "application/pdf"
-      ? ".pdf"
-      : file.type === "image/png"
-        ? ".png"
+  file.type === "application/pdf"
+    ? ".pdf"
+    : file.type === "image/png"
+      ? ".png"
+      : file.type ===
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ? ".docx"
         : ".jpg";
 
   const withoutExtension = file.name.replace(/\.[^/.]+$/, "");
