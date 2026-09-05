@@ -1,5 +1,6 @@
 import { del, get } from "@vercel/blob";
 import { createServerFn } from "@tanstack/react-start";
+import * as mammoth from "mammoth";
 import { z } from "zod";
 import {
   callGateway,
@@ -26,10 +27,14 @@ const languageInstruction: Record<LanguageId, string> = {
 const MAX_FILE_SIZE = 50 * 1024 * 1024;
 const MAX_TOTAL_SIZE = 100 * 1024 * 1024;
 
+const DOCX_MIME =
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
   "image/jpeg",
   "image/png",
+  DOCX_MIME,
 ]);
 
 const FileInput = z
@@ -40,7 +45,7 @@ const FileInput = z
     // Existing Base64 flow remains temporarily supported.
     dataUrl: z.string().min(20).optional(),
 
-    // New Vercel Blob flow.
+    // Vercel Blob flow.
     pathname: z.string().min(1).optional(),
     size: z.number().int().positive().max(MAX_FILE_SIZE).optional(),
   })
@@ -107,13 +112,12 @@ const jsonShape = `{
   "nextSteps": ["3-5 short practical actions"]
 }`;
 
-async function uploadBlobToGemini(
+async function getVerifiedBlob(
   pathname: string,
   fileName: string,
   mimeType: string,
   expectedSize: number,
-  apiKey: string,
-): Promise<GeminiUploadedFile> {
+) {
   const blobResult = await get(pathname, {
     access: "private",
     useCache: false,
@@ -148,6 +152,85 @@ async function uploadBlobToGemini(
       `"${fileName}" file type could not be verified.`,
     );
   }
+
+  return blobResult;
+}
+
+async function extractDocxFromBlob(
+  pathname: string,
+  fileName: string,
+  expectedSize: number,
+): Promise<string> {
+  const blobResult = await getVerifiedBlob(
+    pathname,
+    fileName,
+    DOCX_MIME,
+    expectedSize,
+  );
+
+  const arrayBuffer =
+    await new Response(blobResult.stream).arrayBuffer();
+
+  const buffer = Buffer.from(arrayBuffer);
+
+  const result = await mammoth.extractRawText({
+    buffer,
+  });
+
+  const text = result.value.trim();
+
+  if (!text) {
+    throw new Error(
+      `"${fileName}" does not contain readable text.`,
+    );
+  }
+
+  return text;
+}
+
+async function extractDocxFromDataUrl(
+  dataUrl: string,
+  fileName: string,
+): Promise<string> {
+  const commaIndex = dataUrl.indexOf(",");
+
+  if (commaIndex === -1) {
+    throw new Error(
+      `"${fileName}" contains invalid document data.`,
+    );
+  }
+
+  const base64 = dataUrl.slice(commaIndex + 1);
+  const buffer = Buffer.from(base64, "base64");
+
+  const result = await mammoth.extractRawText({
+    buffer,
+  });
+
+  const text = result.value.trim();
+
+  if (!text) {
+    throw new Error(
+      `"${fileName}" does not contain readable text.`,
+    );
+  }
+
+  return text;
+}
+
+async function uploadBlobToGemini(
+  pathname: string,
+  fileName: string,
+  mimeType: string,
+  expectedSize: number,
+  apiKey: string,
+): Promise<GeminiUploadedFile> {
+  const blobResult = await getVerifiedBlob(
+    pathname,
+    fileName,
+    mimeType,
+    expectedSize,
+  );
 
   const startResponse = await fetch(
     "https://generativelanguage.googleapis.com/upload/v1beta/files",
@@ -319,7 +402,7 @@ export const analyzeDocument = createServerFn({
       );
 
       const systemPrompt = `You are LegalDoc AI, a helpful legal document explainer for ordinary people.
-The user may attach several files — treat them as consecutive pages of ONE single document and give one combined analysis.
+The user may attach several files. Treat them as parts of ONE document and give one combined analysis.
 ${languageInstruction[data.language]}
 Field names/keys must stay in English exactly as given.
 Respond with ONLY valid minified JSON in this shape:
@@ -332,7 +415,7 @@ ${jsonShape}`;
             text: `Analyze the following ${data.files.length} file(s) as ONE document (${data.files
               .map(
                 (file, index) =>
-                  `page ${index + 1}: "${file.fileName}"`,
+                  `file ${index + 1}: "${file.fileName}"`,
               )
               .join(
                 ", ",
@@ -345,6 +428,22 @@ ${jsonShape}`;
             file.pathname &&
             typeof file.size === "number"
           ) {
+            if (file.mimeType === DOCX_MIME) {
+              const extractedText =
+                await extractDocxFromBlob(
+                  file.pathname,
+                  file.fileName,
+                  file.size,
+                );
+
+              userContent.push({
+                type: "text",
+                text: `Content extracted from Word document "${file.fileName}":\n\n${extractedText}`,
+              });
+
+              continue;
+            }
+
             const geminiFile =
               await uploadBlobToGemini(
                 file.pathname,
@@ -369,6 +468,21 @@ ${jsonShape}`;
           }
 
           if (file.dataUrl) {
+            if (file.mimeType === DOCX_MIME) {
+              const extractedText =
+                await extractDocxFromDataUrl(
+                  file.dataUrl,
+                  file.fileName,
+                );
+
+              userContent.push({
+                type: "text",
+                text: `Content extracted from Word document "${file.fileName}":\n\n${extractedText}`,
+              });
+
+              continue;
+            }
+
             if (file.mimeType === "application/pdf") {
               userContent.push({
                 type: "file",
