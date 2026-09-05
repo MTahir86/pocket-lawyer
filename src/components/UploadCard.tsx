@@ -18,7 +18,8 @@ type Props = {
   rtl?: boolean;
 };
 
-const ACCEPT = "application/pdf,image/jpeg,image/png";
+const ACCEPT =
+  "application/pdf,image/jpeg,image/png,application/vnd.openxmlformats-officedocument.wordprocessingml.document,.docx";
 
 export function UploadCard({
   files = [],
