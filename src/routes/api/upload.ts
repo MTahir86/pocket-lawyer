@@ -11,6 +11,7 @@ const ALLOWED_CONTENT_TYPES = [
   "application/pdf",
   "image/jpeg",
   "image/png",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 
 export const Route = createFileRoute("/api/upload")({
