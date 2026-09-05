@@ -68,7 +68,7 @@ const english: Strings = {
     "Is anything unfair to me here?",
   ],
   errUnsupported: "Only PDF, JPG, and PNG files are supported.",
-  errTooLarge: (name) => `"${name}" is larger than 12 MB. Please upload a smaller file.`,
+  errTooLarge: (name) => `"${name}" is larger than 50 MB. Please upload a smaller file.`,
   errFailed: "Analysis failed. Please try again.",
   errGeneric: "Something went wrong.",
 };
@@ -107,7 +107,7 @@ const urdu: Strings = {
     "کیا اس میں میرے ساتھ کوئی ناانصافی ہے؟",
   ],
   errUnsupported: "صرف پی ڈی ایف، جے پی جی اور پی این جی فائلیں قابلِ قبول ہیں۔",
-  errTooLarge: (name) => `"${name}" 12 ایم بی سے بڑی ہے۔ براہِ کرم چھوٹی فائل اپلوڈ کریں۔`,
+  errTooLarge: (name) => `"${name}" 50 ایم بی سے بڑی ہے۔ براہِ کرم چھوٹی فائل اپلوڈ کریں۔`,
   errFailed: "تجزیہ ناکام رہا۔ براہِ کرم دوبارہ کوشش کریں۔",
   errGeneric: "کچھ غلط ہو گیا۔",
 };
@@ -146,7 +146,7 @@ const romanUrdu: Strings = {
     "Kya is mein mere saath koi na-insafi hai?",
   ],
   errUnsupported: "Sirf PDF, JPG aur PNG files support hoti hain.",
-  errTooLarge: (name) => `"${name}" 12 MB se bari hai. Choti file upload karein.`,
+  errTooLarge: (name) => `"${name}" 50 MB se bari hai. Choti file upload karein.`,
   errFailed: "Analysis nakaam raha. Dobara koshish karein.",
   errGeneric: "Kuch ghalat ho gaya.",
 };
