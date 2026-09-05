@@ -24,6 +24,10 @@ type GeminiPart = {
     mimeType: string;
     data: string;
   };
+  fileData?: {
+    mimeType: string;
+    fileUri: string;
+  };
 };
 
 const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
@@ -88,7 +92,11 @@ function toParts(content: unknown): GeminiPart[] {
       type?: string;
       text?: string;
       image_url?: { url?: string };
-      file?: { file_data?: string };
+      file?: {
+        file_data?: string;
+        file_uri?: string;
+        mime_type?: string;
+      };
     };
 
     if (part.type === "text" && typeof part.text === "string") {
@@ -101,6 +109,20 @@ function toParts(content: unknown): GeminiPart[] {
       typeof part.image_url?.url === "string"
     ) {
       parts.push(dataUrlToInlineData(part.image_url.url));
+      continue;
+    }
+
+    if (
+      part.type === "file" &&
+      typeof part.file?.file_uri === "string" &&
+      typeof part.file?.mime_type === "string"
+    ) {
+      parts.push({
+        fileData: {
+          mimeType: part.file.mime_type,
+          fileUri: part.file.file_uri,
+        },
+      });
       continue;
     }
 
