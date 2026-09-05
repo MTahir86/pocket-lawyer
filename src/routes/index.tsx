@@ -1,4 +1,3 @@
-import { uploadPresigned } from "@vercel/blob/client";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
@@ -160,6 +159,7 @@ function Index() {
     setStatus("loading");
 
     try {
+      const { uploadPresigned } = await import("@vercel/blob/client");
       const totalBytes = files.reduce(
         (sum, item) => sum + item.file.size,
         0,
