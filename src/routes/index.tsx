@@ -1,7 +1,14 @@
+import { uploadPresigned } from "@vercel/blob/client";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useState } from "react";
-import { FileText, Loader2, RotateCcw, Scale, FileCheck2 } from "lucide-react";
+import {
+  FileText,
+  Loader2,
+  RotateCcw,
+  Scale,
+  FileCheck2,
+} from "lucide-react";
 import { UploadCard, type PickedFile } from "@/components/UploadCard";
 import { ResultCards } from "@/components/ResultCards";
 import { DownloadPdfButton } from "@/components/DownloadPdfButton";
@@ -33,20 +40,39 @@ export const Route = createFileRoute("/")({
 });
 
 const LANGS: LanguageId[] = ["english", "urdu", "roman-urdu"];
-const MAX_BYTES = 12 * 1024 * 1024;
+
+const MAX_BYTES = 50 * 1024 * 1024;
+const MAX_TOTAL_BYTES = 100 * 1024 * 1024;
 const MAX_FILES = 15;
 
-function readAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Could not read that file."));
-    reader.readAsDataURL(file);
-  });
+const ALLOWED_CONTENT_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+];
+
+function safeUploadName(file: File) {
+  const extension =
+    file.type === "application/pdf"
+      ? ".pdf"
+      : file.type === "image/png"
+        ? ".png"
+        : ".jpg";
+
+  const withoutExtension = file.name.replace(/\.[^/.]+$/, "");
+
+  const cleaned = withoutExtension
+    .replace(/[^a-zA-Z0-9_-]/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 100);
+
+  return `${cleaned || "document"}${extension}`;
 }
 
 function Index() {
   const analyze = useServerFn(analyzeDocument);
+
   const [language, setLanguage] = useState<LanguageId>("english");
   const [status, setStatus] = useState<"idle" | "loading" | "done">("idle");
   const [files, setFiles] = useState<PickedFile[]>([]);
@@ -55,6 +81,7 @@ function Index() {
 
   const t = useStrings(language);
   const rtl = language === "urdu";
+
   const fileName =
     files.length === 0
       ? ""
@@ -64,34 +91,64 @@ function Index() {
 
   function addFiles(picked: File[]) {
     setError(null);
-    const allowed = ["application/pdf", "image/jpeg", "image/png"];
+
     const next: PickedFile[] = [];
 
     for (const file of picked) {
-      if (!allowed.includes(file.type)) {
+      if (!ALLOWED_CONTENT_TYPES.includes(file.type)) {
         setError(t.errUnsupported);
         continue;
       }
+
       if (file.size > MAX_BYTES) {
-        setError(t.errTooLarge(file.name));
+        setError(`${file.name}: Maximum file size is 50 MB.`);
         continue;
       }
+
       next.push({
-        id: `${file.name}-${file.size}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        id: `${file.name}-${file.size}-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2, 7)}`,
         file,
-        previewUrl: file.type.startsWith("image/") ? URL.createObjectURL(file) : null,
+        previewUrl: file.type.startsWith("image/")
+          ? URL.createObjectURL(file)
+          : null,
       });
     }
 
-    if (next.length) {
-      setFiles((prev) => [...prev, ...next].slice(0, MAX_FILES));
-    }
+    if (!next.length) return;
+
+    setFiles((prev) => {
+      const combined = [...prev, ...next].slice(0, MAX_FILES);
+
+      const totalBytes = combined.reduce(
+        (sum, item) => sum + item.file.size,
+        0,
+      );
+
+      if (totalBytes > MAX_TOTAL_BYTES) {
+        next.forEach((item) => {
+          if (item.previewUrl) {
+            URL.revokeObjectURL(item.previewUrl);
+          }
+        });
+
+        setError("Combined file size must be 100 MB or less.");
+        return prev;
+      }
+
+      return combined;
+    });
   }
 
   function removeFile(id: string) {
     setFiles((prev) => {
       const target = prev.find((f) => f.id === id);
-      if (target?.previewUrl) URL.revokeObjectURL(target.previewUrl);
+
+      if (target?.previewUrl) {
+        URL.revokeObjectURL(target.previewUrl);
+      }
+
       return prev.filter((f) => f.id !== id);
     });
   }
@@ -103,12 +160,37 @@ function Index() {
     setStatus("loading");
 
     try {
+      const totalBytes = files.reduce(
+        (sum, item) => sum + item.file.size,
+        0,
+      );
+
+      if (totalBytes > MAX_TOTAL_BYTES) {
+        throw new Error(
+          "Combined file size must be 100 MB or less.",
+        );
+      }
+
       const payload = await Promise.all(
-        files.map(async (f) => ({
-          fileName: f.file.name,
-          mimeType: f.file.type,
-          dataUrl: await readAsDataUrl(f.file),
-        })),
+        files.map(async ({ file }) => {
+          const pathname = `legal-docs/${crypto.randomUUID()}-${safeUploadName(
+            file,
+          )}`;
+
+          const blob = await uploadPresigned(pathname, file, {
+            access: "private",
+            handleUploadUrl: "/api/upload",
+            contentType: file.type,
+            multipart: true,
+          });
+
+          return {
+            fileName: file.name,
+            mimeType: file.type,
+            pathname: blob.pathname,
+            size: file.size,
+          };
+        }),
       );
 
       const res = await analyze({
@@ -121,14 +203,23 @@ function Index() {
       setResult(res);
       setStatus("done");
     } catch (e) {
-      setError(e instanceof Error ? e.message : t.errFailed);
+      console.error("Document analysis failed:", e);
+
+      setError(
+        e instanceof Error
+          ? e.message
+          : t.errFailed,
+      );
+
       setStatus("idle");
     }
   }
 
   function reset() {
     files.forEach((f) => {
-      if (f.previewUrl) URL.revokeObjectURL(f.previewUrl);
+      if (f.previewUrl) {
+        URL.revokeObjectURL(f.previewUrl);
+      }
     });
 
     setResult(null);
@@ -218,7 +309,11 @@ function Index() {
         {status === "loading" && (
           <div className="flex flex-col items-center rounded-3xl border border-border bg-card p-10 text-center card-elevated">
             <Loader2 className="size-9 animate-spin text-primary" />
-            <p className="mt-5 font-display text-lg font-bold">{t.loadingTitle}</p>
+
+            <p className="mt-5 font-display text-lg font-bold">
+              {t.loadingTitle}
+            </p>
+
             <p className="mt-1.5 text-sm text-muted-foreground">
               {t.loadingSubtitle}
             </p>
@@ -236,6 +331,7 @@ function Index() {
             <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3">
               <span className="flex min-w-0 items-center gap-2 text-sm">
                 <FileCheck2 className="size-4 shrink-0 text-success" />
+
                 <span className="truncate text-muted-foreground">
                   {fileName}
                 </span>
@@ -250,7 +346,11 @@ function Index() {
               </button>
             </div>
 
-            <ResultCards result={result} rtl={rtl} t={t} />
+            <ResultCards
+              result={result}
+              rtl={rtl}
+              t={t}
+            />
 
             <DownloadPdfButton
               result={result}
