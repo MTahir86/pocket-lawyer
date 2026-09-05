@@ -371,9 +371,6 @@ function Index() {
           </>
         )}
 
-        <p className="pt-2 text-center text-xs leading-relaxed text-muted-foreground">
-          {t.disclaimer}
-        </p>
       </main>
 
       <footer className="legal-gradient px-5 py-7 text-primary-foreground">
