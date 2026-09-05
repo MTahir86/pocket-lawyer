@@ -33,7 +33,7 @@ export const Route = createFileRoute("/api/upload")({
               }
 
               const token = await issueSignedToken({
-                pathname: "legal-docs/*",
+                pathname, "legal-docs/*",
                 operations: ["put"],
                 allowedContentTypes: ALLOWED_CONTENT_TYPES,
                 maximumSizeInBytes: MAX_FILE_SIZE,
@@ -46,7 +46,7 @@ export const Route = createFileRoute("/api/upload")({
                   allowedContentTypes: ALLOWED_CONTENT_TYPES,
                   maximumSizeInBytes: MAX_FILE_SIZE,
                   validUntil: Date.now() + 10 * 60 * 1000,
-                  addRandomSuffix: true,
+                  addRandomSuffix: false,
                   allowOverwrite: false,
                 },
               };
