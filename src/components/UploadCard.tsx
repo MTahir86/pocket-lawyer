@@ -87,8 +87,11 @@ export function UploadCard({
           <ImageIcon className="size-3.5" />
           <span>{t.formats}</span>
         </div>
+        
       </div>
-
+<p className="mt-2 text-xs text-muted-foreground">
+  Up to 50 MB per file · 100 MB total · Maximum 15 files
+</p>
       {files.length > 0 && (
         <div className="rounded-3xl border border-border bg-card p-4 card-elevated">
           <div className="flex items-center justify-between">
